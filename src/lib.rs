@@ -19,10 +19,12 @@ mod pxe;
 const KERNEL_FILE_NAME: &str = "kernel-x86_64";
 const BIOS_STAGE_3: &str = "boot-stage-3";
 const BIOS_STAGE_4: &str = "boot-stage-4";
+const INCLUDED: &str = "included";
 
 /// Create disk images for booting on legacy BIOS systems.
 pub struct BiosBoot {
     kernel: PathBuf,
+    include: Option<PathBuf>,
 }
 
 impl BiosBoot {
@@ -30,6 +32,16 @@ impl BiosBoot {
     pub fn new(kernel_path: &Path) -> Self {
         Self {
             kernel: kernel_path.to_owned(),
+            include: None,
+        }
+    }
+
+    /// Start creating a disk image for the given bootloader ELF executable.
+    /// Includes the "including" file under the name "included" in the file system.
+    pub fn new_including(kernel_path: &Path, including: &Path) -> Self {
+        Self {
+            kernel: kernel_path.to_owned(),
+            include: Some(including.to_owned()),
         }
     }
 
@@ -66,6 +78,10 @@ impl BiosBoot {
         files.insert(KERNEL_FILE_NAME, self.kernel.as_path());
         files.insert(BIOS_STAGE_3, stage_3_path);
         files.insert(BIOS_STAGE_4, stage_4_path);
+        match &self.include {
+            Some(path) => files.insert(INCLUDED, path),
+            None => None
+        };
 
         let out_file = NamedTempFile::new().context("failed to create temp file")?;
         fat::create_fat_filesystem(files, out_file.path())
@@ -78,6 +94,7 @@ impl BiosBoot {
 /// Create disk images for booting on UEFI systems.
 pub struct UefiBoot {
     kernel: PathBuf,
+    include: Option<PathBuf>,
 }
 
 impl UefiBoot {
@@ -85,6 +102,16 @@ impl UefiBoot {
     pub fn new(kernel_path: &Path) -> Self {
         Self {
             kernel: kernel_path.to_owned(),
+            include: None,
+        }
+    }
+
+    /// Start creating a disk image for the given bootloader ELF executable.
+    /// Includes the "including" file under the name "included" in the file system.
+    pub fn new_including(kernel_path: &Path, including: &Path) -> Self {
+        Self {
+            kernel: kernel_path.to_owned(),
+            include: Some(including.to_owned()),
         }
     }
 
@@ -125,6 +152,10 @@ impl UefiBoot {
         let mut files = BTreeMap::new();
         files.insert("efi/boot/bootx64.efi", bootloader_path);
         files.insert(KERNEL_FILE_NAME, self.kernel.as_path());
+        match &self.include {
+            Some(path) => files.insert(INCLUDED, path),
+            None => None
+        };
 
         let out_file = NamedTempFile::new().context("failed to create temp file")?;
         fat::create_fat_filesystem(files, out_file.path())
